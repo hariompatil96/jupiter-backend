@@ -24,9 +24,9 @@ const startServer = async () => {
 ║                                                               ║
 ║     JUPITER - Smart Student & HR Utility Portal               ║
 ║                                                               ║
-║     Server running on port ${env.PORT}                            ║
-║     Environment: ${env.NODE_ENV.padEnd(42)}║
-║     API Base URL: http://localhost:${env.PORT}/api                 ║
+║     Server running on port ${env.PORT}                        ║
+║     Environment: ${env.NODE_ENV.padEnd(42)}                   ║
+║     API Base URL: http://localhost:${env.PORT}/api            ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
       `);
