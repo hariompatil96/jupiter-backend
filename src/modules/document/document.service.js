@@ -36,15 +36,13 @@ class DocumentService {
       throw new AppError(MESSAGES.STUDENT_NOT_FOUND, 404);
     }
 
-    // Create document record with file info
+    // Create document record with file info (aligned with Java field names)
     const document = await Document.create({
       ...documentData,
-      filename: file.filename,
-      originalName: file.originalname,
+      fileName: file.filename,
+      filePath: file.path,
       mimeType: file.mimetype,
-      size: file.size,
-      path: file.path,
-      url: `/uploads/${file.filename}`,
+      fileSize: file.size,
     });
 
     return document;
@@ -110,12 +108,12 @@ class DocumentService {
   }
 
   /**
-   * Verify document
+   * Verify document (aligned with Java - accepts hrId, hrName, remarks)
    * @param {string} id - Document ID
-   * @param {string} userId - User ID who is verifying
+   * @param {Object} verifyData - Verification data { hrId, hrName, remarks }
    * @returns {Object} Verified document
    */
-  async verifyDocument(id, userId) {
+  async verifyDocument(id, verifyData = {}) {
     const document = await Document.findById(id);
     if (!document) {
       throw new AppError(MESSAGES.DOCUMENT_NOT_FOUND, 404);
@@ -126,35 +124,34 @@ class DocumentService {
     }
 
     document.status = DOCUMENT_STATUS.VERIFIED;
-    document.verifiedBy = userId;
+    document.verified = true;
+    document.verifiedBy = verifyData.hrId;
+    document.verifiedByName = verifyData.hrName;
     document.verifiedAt = new Date();
-    document.rejectedBy = undefined;
-    document.rejectedAt = undefined;
-    document.rejectionReason = undefined;
+    document.remarks = verifyData.remarks;
 
     await document.save();
     return document;
   }
 
   /**
-   * Reject document
+   * Reject document (aligned with Java - accepts hrId, hrName, remarks)
    * @param {string} id - Document ID
-   * @param {string} userId - User ID who is rejecting
-   * @param {string} rejectionReason - Rejection reason
+   * @param {Object} rejectData - Rejection data { hrId, hrName, remarks }
    * @returns {Object} Rejected document
    */
-  async rejectDocument(id, userId, rejectionReason) {
+  async rejectDocument(id, rejectData = {}) {
     const document = await Document.findById(id);
     if (!document) {
       throw new AppError(MESSAGES.DOCUMENT_NOT_FOUND, 404);
     }
 
     document.status = DOCUMENT_STATUS.REJECTED;
-    document.rejectedBy = userId;
-    document.rejectedAt = new Date();
-    document.rejectionReason = rejectionReason;
-    document.verifiedBy = undefined;
-    document.verifiedAt = undefined;
+    document.verified = false;
+    document.verifiedBy = rejectData.hrId;
+    document.verifiedByName = rejectData.hrName;
+    document.verifiedAt = new Date();
+    document.remarks = rejectData.remarks;
 
     await document.save();
     return document;
@@ -172,11 +169,11 @@ class DocumentService {
 
     // Delete file from filesystem
     try {
-      const filePath = path.join(__dirname, '../../../', document.path);
+      const filePath = path.join(__dirname, '../../../', document.filePath);
       await fs.unlink(filePath);
     } catch (error) {
       // File might not exist, continue with deletion
-      console.warn(`Could not delete file: ${document.path}`);
+      console.warn(`Could not delete file: ${document.filePath}`);
     }
 
     await Document.findByIdAndDelete(id);
@@ -184,23 +181,71 @@ class DocumentService {
   }
 
   /**
+   * Get documents expiring within specified days
+   * @param {number} days - Number of days
+   * @returns {Array} Expiring documents
+   */
+  async getExpiringDocuments(days = 30) {
+    const now = new Date();
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + days);
+
+    const documents = await Document.find({
+      expiryDate: {
+        $gt: now,
+        $lte: futureDate,
+      },
+    }).sort({ expiryDate: 1 });
+
+    return documents;
+  }
+
+  /**
+   * Get count of documents expiring within specified days
+   * @param {number} days - Number of days
+   * @returns {number} Count of expiring documents
+   */
+  async getExpiringDocumentsCount(days = 30) {
+    const now = new Date();
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + days);
+
+    const count = await Document.countDocuments({
+      expiryDate: {
+        $gt: now,
+        $lte: futureDate,
+      },
+    });
+
+    return count;
+  }
+
+  /**
    * Get document statistics
    * @returns {Object} Statistics
    */
   async getStats() {
+    const now = new Date();
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
     const [
       totalDocuments,
       pendingDocuments,
       verifiedDocuments,
       rejectedDocuments,
+      expiringDocuments,
       typeStats,
     ] = await Promise.all([
       Document.countDocuments(),
       Document.countDocuments({ status: DOCUMENT_STATUS.PENDING }),
       Document.countDocuments({ status: DOCUMENT_STATUS.VERIFIED }),
       Document.countDocuments({ status: DOCUMENT_STATUS.REJECTED }),
+      Document.countDocuments({
+        expiryDate: { $gt: now, $lte: thirtyDaysFromNow },
+      }),
       Document.aggregate([
-        { $group: { _id: '$type', count: { $sum: 1 } } },
+        { $group: { _id: '$documentType', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]),
     ]);
@@ -215,6 +260,7 @@ class DocumentService {
       pending: pendingDocuments,
       verified: verifiedDocuments,
       rejected: rejectedDocuments,
+      expiringSoon: expiringDocuments,
       byType,
     };
   }

@@ -4,14 +4,13 @@ const Performance = require('../performance/performance.model');
 const Document = require('../document/document.model');
 const {
   STUDENT_STATUS,
-  SKILL_STATUS,
   PERFORMANCE_STATUS,
   DOCUMENT_STATUS,
 } = require('../../utils/constants');
 
 class HRService {
   /**
-   * Get comprehensive dashboard statistics
+   * Get comprehensive dashboard statistics (aligned with Java)
    * @returns {Object} Dashboard statistics
    */
   async getDashboardStats() {
@@ -22,51 +21,61 @@ class HRService {
       inactiveStudents,
       graduatedStudents,
       suspendedStudents,
+      onLeaveStudents,
     ] = await Promise.all([
       Student.countDocuments(),
       Student.countDocuments({ status: STUDENT_STATUS.ACTIVE }),
       Student.countDocuments({ status: STUDENT_STATUS.INACTIVE }),
       Student.countDocuments({ status: STUDENT_STATUS.GRADUATED }),
       Student.countDocuments({ status: STUDENT_STATUS.SUSPENDED }),
+      Student.countDocuments({ status: STUDENT_STATUS.ON_LEAVE }),
     ]);
 
-    // Skill statistics
+    // Skill statistics (using verifiedByHr boolean - aligned with Java)
     const [
       totalSkills,
-      pendingSkills,
+      unverifiedSkills,
       verifiedSkills,
-      rejectedSkills,
     ] = await Promise.all([
       Skill.countDocuments(),
-      Skill.countDocuments({ status: SKILL_STATUS.PENDING }),
-      Skill.countDocuments({ status: SKILL_STATUS.VERIFIED }),
-      Skill.countDocuments({ status: SKILL_STATUS.REJECTED }),
+      Skill.countDocuments({ verifiedByHr: false }),
+      Skill.countDocuments({ verifiedByHr: true }),
     ]);
 
     // Performance statistics
     const [
       totalPerformances,
+      draftPerformances,
       pendingPerformances,
       approvedPerformances,
       rejectedPerformances,
     ] = await Promise.all([
       Performance.countDocuments(),
+      Performance.countDocuments({ status: PERFORMANCE_STATUS.DRAFT }),
       Performance.countDocuments({ status: PERFORMANCE_STATUS.PENDING }),
       Performance.countDocuments({ status: PERFORMANCE_STATUS.APPROVED }),
       Performance.countDocuments({ status: PERFORMANCE_STATUS.REJECTED }),
     ]);
 
     // Document statistics
+    const now = new Date();
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
     const [
       totalDocuments,
       pendingDocuments,
       verifiedDocuments,
       rejectedDocuments,
+      expiringDocuments,
     ] = await Promise.all([
       Document.countDocuments(),
       Document.countDocuments({ status: DOCUMENT_STATUS.PENDING }),
       Document.countDocuments({ status: DOCUMENT_STATUS.VERIFIED }),
       Document.countDocuments({ status: DOCUMENT_STATUS.REJECTED }),
+      Document.countDocuments({
+        expiryDate: { $gt: now, $lte: thirtyDaysFromNow },
+      }),
     ]);
 
     // Department-wise student distribution
@@ -108,9 +117,9 @@ class HRService {
       topSkillCategories[item._id] = item.count;
     });
 
-    // Performance type distribution
+    // Performance type distribution (using evaluationType - aligned with Java)
     const performanceTypeStats = await Performance.aggregate([
-      { $group: { _id: '$type', count: { $sum: 1 } } },
+      { $group: { _id: '$evaluationType', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
     ]);
 
@@ -119,9 +128,9 @@ class HRService {
       performanceByType[item._id] = item.count;
     });
 
-    // Document type distribution
+    // Document type distribution (using documentType - aligned with Java)
     const documentTypeStats = await Document.aggregate([
-      { $group: { _id: '$type', count: { $sum: 1 } } },
+      { $group: { _id: '$documentType', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
     ]);
 
@@ -137,27 +146,29 @@ class HRService {
         inactive: inactiveStudents,
         graduated: graduatedStudents,
         suspended: suspendedStudents,
+        onLeave: onLeaveStudents,
         byDepartment: studentsByDepartment,
       },
       skills: {
         total: totalSkills,
-        pending: pendingSkills,
+        unverified: unverifiedSkills,
         verified: verifiedSkills,
-        rejected: rejectedSkills,
         topCategories: topSkillCategories,
       },
       performances: {
         total: totalPerformances,
+        draft: draftPerformances,
         pending: pendingPerformances,
         approved: approvedPerformances,
         rejected: rejectedPerformances,
-        byType: performanceByType,
+        byEvaluationType: performanceByType,
       },
       documents: {
         total: totalDocuments,
         pending: pendingDocuments,
         verified: verifiedDocuments,
         rejected: rejectedDocuments,
+        expiringSoon: expiringDocuments,
         byType: documentsByType,
       },
       recentActivity: {
@@ -168,10 +179,11 @@ class HRService {
         period: '7 days',
       },
       pendingActions: {
-        skillsToVerify: pendingSkills,
+        skillsToVerify: unverifiedSkills,
         performancesToReview: pendingPerformances,
         documentsToVerify: pendingDocuments,
-        total: pendingSkills + pendingPerformances + pendingDocuments,
+        expiringDocuments: expiringDocuments,
+        total: unverifiedSkills + pendingPerformances + pendingDocuments,
       },
     };
   }

@@ -62,27 +62,29 @@ class DocumentController {
 
   /**
    * PUT /api/hr/document/:id/verify
-   * Verify a document
+   * Verify a document (aligned with Java - accepts hrId, hrName, remarks in body)
    */
   verifyDocument = asyncHandler(async (req, res) => {
-    const document = await documentService.verifyDocument(
-      req.params.id,
-      req.user.id
-    );
+    const { hrId, hrName, remarks } = req.body || {};
+    const document = await documentService.verifyDocument(req.params.id, {
+      hrId: hrId || req.user.id,
+      hrName: hrName || `${req.user.firstName} ${req.user.lastName}`,
+      remarks,
+    });
     return ApiResponse.success(res, MESSAGES.DOCUMENT_VERIFIED, document);
   });
 
   /**
    * PUT /api/hr/document/:id/reject
-   * Reject a document
+   * Reject a document (aligned with Java - accepts hrId, hrName, remarks in body)
    */
   rejectDocument = asyncHandler(async (req, res) => {
-    const { rejectionReason } = req.body;
-    const document = await documentService.rejectDocument(
-      req.params.id,
-      req.user.id,
-      rejectionReason
-    );
+    const { hrId, hrName, remarks } = req.body || {};
+    const document = await documentService.rejectDocument(req.params.id, {
+      hrId: hrId || req.user.id,
+      hrName: hrName || `${req.user.firstName} ${req.user.lastName}`,
+      remarks,
+    });
     return ApiResponse.success(res, MESSAGES.DOCUMENT_REJECTED, document);
   });
 
@@ -102,6 +104,16 @@ class DocumentController {
   getStats = asyncHandler(async (req, res) => {
     const stats = await documentService.getStats();
     return ApiResponse.success(res, MESSAGES.STATS_FOUND, stats);
+  });
+
+  /**
+   * GET /api/hr/document/expiring
+   * Get documents expiring soon (within 30 days)
+   */
+  getExpiringDocuments = asyncHandler(async (req, res) => {
+    const days = parseInt(req.query.days) || 30;
+    const documents = await documentService.getExpiringDocuments(days);
+    return ApiResponse.success(res, MESSAGES.DOCUMENTS_FOUND, documents);
   });
 }
 

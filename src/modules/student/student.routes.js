@@ -1,7 +1,11 @@
 const express = require('express');
 const studentController = require('./student.controller');
 const { authenticate } = require('../../middlewares/auth.middleware');
-const { adminOrHr } = require('../../middlewares/role.middleware');
+const {
+  adminOrHr,
+  blockStudentList,
+  studentSelfOrAdminHr,
+} = require('../../middlewares/role.middleware');
 const {
   validate,
   createStudentSchema,
@@ -20,32 +24,35 @@ const router = express.Router();
 router.get('/ping', studentController.ping);
 router.get('/status', studentController.status);
 
-// Statistics endpoint (protected)
+// Statistics endpoint (protected - ADMIN/HR only)
 router.get('/stats', authenticate, adminOrHr, studentController.getStats);
 
-// Search endpoint (must come before /:id)
-router.get('/search', authenticate, studentController.searchStudents);
+// Search endpoint (must come before /:id) - ADMIN/HR only (aligned with Java)
+router.get('/search', authenticate, blockStudentList, studentController.searchStudents);
 
-// Get by code (must come before /:id)
+// Get by code (must come before /:id) - ADMIN/HR only for listing
 router.get(
   '/code/:studentCode',
   authenticate,
+  blockStudentList,
   validate(getStudentByCodeSchema),
   studentController.getStudentByCode
 );
 
-// Get by department
+// Get by department - ADMIN/HR only (aligned with Java)
 router.get(
   '/department/:department',
   authenticate,
+  blockStudentList,
   validate(getStudentsByDepartmentSchema),
   studentController.getStudentsByDepartment
 );
 
-// Get by status
+// Get by status - ADMIN/HR only (aligned with Java)
 router.get(
   '/status/:status',
   authenticate,
+  blockStudentList,
   validate(getStudentsByStatusSchema),
   studentController.getStudentsByStatus
 );
@@ -59,11 +66,14 @@ router.post(
   studentController.createStudent
 );
 
-router.get('/', authenticate, studentController.getAllStudents);
+// Get all students - ADMIN/HR only (students cannot list all - aligned with Java)
+router.get('/', authenticate, blockStudentList, studentController.getAllStudents);
 
+// Get student by ID - Students can only access their own profile (aligned with Java)
 router.get(
   '/:id',
   authenticate,
+  studentSelfOrAdminHr('id'),
   validate(getStudentByIdSchema),
   studentController.getStudentById
 );

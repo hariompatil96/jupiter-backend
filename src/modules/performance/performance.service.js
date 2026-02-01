@@ -149,17 +149,19 @@ class PerformanceService {
   async getStats() {
     const [
       totalPerformances,
+      draftPerformances,
       pendingPerformances,
       approvedPerformances,
       rejectedPerformances,
       typeStats,
     ] = await Promise.all([
       Performance.countDocuments(),
+      Performance.countDocuments({ status: PERFORMANCE_STATUS.DRAFT }),
       Performance.countDocuments({ status: PERFORMANCE_STATUS.PENDING }),
       Performance.countDocuments({ status: PERFORMANCE_STATUS.APPROVED }),
       Performance.countDocuments({ status: PERFORMANCE_STATUS.REJECTED }),
       Performance.aggregate([
-        { $group: { _id: '$type', count: { $sum: 1 } } },
+        { $group: { _id: '$evaluationType', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]),
     ]);
@@ -171,10 +173,11 @@ class PerformanceService {
 
     return {
       total: totalPerformances,
+      draft: draftPerformances,
       pending: pendingPerformances,
       approved: approvedPerformances,
       rejected: rejectedPerformances,
-      byType,
+      byEvaluationType: byType,
     };
   }
 }

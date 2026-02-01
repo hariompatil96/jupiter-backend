@@ -71,6 +71,95 @@ const ownerOrAdmin = (paramName = 'id') => {
   };
 };
 
+/**
+ * Restrict STUDENT role from accessing certain endpoints
+ * Students can only access their own data (aligned with Java)
+ * @param {string} studentIdParam - The request parameter containing the student ID
+ */
+const studentOwnDataOnly = (studentIdParam = 'studentId') => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return ApiResponse.unauthorized(res, MESSAGES.UNAUTHORIZED);
+    }
+
+    // Admin and HR can access all data
+    if ([ROLES.ADMIN, ROLES.HR].includes(req.user.role)) {
+      return next();
+    }
+
+    // Students can only access their own data
+    if (req.user.role === ROLES.STUDENT) {
+      const requestedStudentId = req.params[studentIdParam];
+
+      // If student ID is in params, check if it matches the user's linked student
+      if (requestedStudentId && req.user.studentId) {
+        if (requestedStudentId !== req.user.studentId.toString()) {
+          return ApiResponse.forbidden(
+            res,
+            'Students can only access their own data'
+          );
+        }
+      }
+    }
+
+    next();
+  };
+};
+
+/**
+ * Block STUDENT role from accessing list endpoints
+ * Aligned with Java - students cannot list all resources
+ */
+const blockStudentList = (req, res, next) => {
+  if (!req.user) {
+    return ApiResponse.unauthorized(res, MESSAGES.UNAUTHORIZED);
+  }
+
+  // Block students from accessing list endpoints
+  if (req.user.role === ROLES.STUDENT) {
+    return ApiResponse.forbidden(
+      res,
+      'Students cannot access this endpoint. Please contact HR or Admin.'
+    );
+  }
+
+  next();
+};
+
+/**
+ * Check if student is accessing their own profile
+ * For student routes where ID might be the student's own ID
+ */
+const studentSelfOrAdminHr = (paramName = 'id') => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return ApiResponse.unauthorized(res, MESSAGES.UNAUTHORIZED);
+    }
+
+    // Admin and HR can access any profile
+    if ([ROLES.ADMIN, ROLES.HR].includes(req.user.role)) {
+      return next();
+    }
+
+    // Students can only access their own profile
+    if (req.user.role === ROLES.STUDENT) {
+      const requestedId = req.params[paramName];
+
+      // Check if the requested ID matches the user's linked student ID
+      if (req.user.studentId && requestedId === req.user.studentId.toString()) {
+        return next();
+      }
+
+      return ApiResponse.forbidden(
+        res,
+        'Students can only access their own profile'
+      );
+    }
+
+    next();
+  };
+};
+
 module.exports = {
   authorize,
   adminOnly,
@@ -79,4 +168,7 @@ module.exports = {
   studentOnly,
   allRoles,
   ownerOrAdmin,
+  studentOwnDataOnly,
+  blockStudentList,
+  studentSelfOrAdminHr,
 };

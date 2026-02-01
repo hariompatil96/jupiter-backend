@@ -73,6 +73,9 @@ router.post('/', upload.single('file'), documentController.createDocument);
 // Get pending documents (must come before /:id)
 router.get('/pending', documentController.getPendingDocuments);
 
+// Get expiring documents (aligned with Java - documents expiring within 30 days)
+router.get('/expiring', documentController.getExpiringDocuments);
+
 // Get documents by student ID
 router.get(
   '/student/:studentId',
