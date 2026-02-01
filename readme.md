@@ -1,972 +1,452 @@
 # JUPITER - Smart Student & HR Utility Portal
 
-A Spring MVC application for managing students, skills, performance evaluations, and documents with MongoDB backend.
+A production-ready Node.js backend for managing students, skills, performance records, and documents.
 
-**Base URL:** `http://localhost:8080/JUPITER`
+## Tech Stack
 
----
+- **Runtime:** Node.js 20+
+- **Framework:** Express.js
+- **Database:** MongoDB Atlas
+- **ODM:** Mongoose
+- **Authentication:** JWT (Access + Refresh Tokens)
+- **Validation:** Zod
+- **File Upload:** Multer
+- **Logging:** Winston
+- **Security:** Helmet, CORS
 
-## Quick Start
+## Project Structure
+
+```
+jupiter-backend/
+├── src/
+│   ├── config/
+│   │   ├── db.js              # MongoDB connection
+│   │   └── env.js             # Environment configuration
+│   │
+│   ├── modules/
+│   │   ├── auth/              # Authentication module
+│   │   │   ├── user.model.js
+│   │   │   ├── auth.service.js
+│   │   │   ├── auth.controller.js
+│   │   │   ├── auth.routes.js
+│   │   │   ├── auth.validation.js
+│   │   │   └── index.js
+│   │   │
+│   │   ├── student/           # Student module
+│   │   │   ├── student.model.js
+│   │   │   ├── student.service.js
+│   │   │   ├── student.controller.js
+│   │   │   ├── student.routes.js
+│   │   │   ├── student.validation.js
+│   │   │   └── index.js
+│   │   │
+│   │   ├── hr/                # HR module (aggregates skill, performance, document)
+│   │   │   ├── hr.service.js
+│   │   │   ├── hr.controller.js
+│   │   │   ├── hr.routes.js
+│   │   │   └── index.js
+│   │   │
+│   │   ├── skill/             # Skill module
+│   │   │   ├── skill.model.js
+│   │   │   ├── skill.service.js
+│   │   │   ├── skill.controller.js
+│   │   │   ├── skill.routes.js
+│   │   │   ├── skill.validation.js
+│   │   │   └── index.js
+│   │   │
+│   │   ├── performance/       # Performance module
+│   │   │   ├── performance.model.js
+│   │   │   ├── performance.service.js
+│   │   │   ├── performance.controller.js
+│   │   │   ├── performance.routes.js
+│   │   │   ├── performance.validation.js
+│   │   │   └── index.js
+│   │   │
+│   │   └── document/          # Document module
+│   │       ├── document.model.js
+│   │       ├── document.service.js
+│   │       ├── document.controller.js
+│   │       ├── document.routes.js
+│   │       ├── document.validation.js
+│   │       └── index.js
+│   │
+│   ├── middlewares/
+│   │   ├── auth.middleware.js   # JWT authentication
+│   │   ├── role.middleware.js   # Role-based access control
+│   │   └── error.middleware.js  # Global error handling
+│   │
+│   ├── utils/
+│   │   ├── apiResponse.js      # Standard API response format
+│   │   ├── constants.js        # Application constants
+│   │   └── logger.js           # Winston logger
+│   │
+│   ├── app.js                  # Express app configuration
+│   └── server.js               # Server entry point
+│
+├── uploads/                    # Uploaded files directory
+├── logs/                       # Log files (production)
+├── .env.example                # Environment template
+├── package.json
+└── README.md
+```
+
+## Setup Instructions
 
 ### Prerequisites
-- Java 17
-- MongoDB (running on localhost:27017)
-- Apache Tomcat 10+
 
-### Build & Deploy
-```bash
-cd Jupiter_HR_Project
-mvn clean package -DskipTests
-# Copy target/JUPITER.war to Tomcat webapps/
+- Node.js 20 or higher
+- MongoDB Atlas account or local MongoDB instance
+- npm or yarn
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd jupiter-backend
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment:**
+   ```bash
+   cp .env.example .env
+   ```
+   Edit `.env` with your configuration:
+   ```env
+   PORT=8080
+   NODE_ENV=development
+   MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/jupiter
+   JWT_SECRET=your-super-secret-jwt-key
+   JWT_REFRESH_SECRET=your-super-secret-refresh-key
+   TOKEN_EXPIRES_IN=15m
+   REFRESH_EXPIRES_IN=7d
+   UPLOAD_DIR=uploads
+   MAX_FILE_SIZE=5242880
+   ```
+
+4. **Create uploads directory:**
+   ```bash
+   mkdir uploads
+   ```
+
+5. **Start the server:**
+   ```bash
+   # Development mode (with auto-reload)
+   npm run dev
+
+   # Production mode
+   npm start
+   ```
+
+### Running with Docker (Optional)
+
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+EXPOSE 8080
+CMD ["npm", "start"]
 ```
 
-### Demo Credentials
-| Role | Username | Password |
-|------|----------|----------|
-| Admin | admin | admin123 |
-| HR | hr1 | pass123 |
-| Student | student1 | pass123 |
+## API Overview
 
----
-
-## Web Pages
-
-| Page | URL |
-|------|-----|
-| Login | http://localhost:8080/JUPITER/login |
-| Student Dashboard | http://localhost:8080/JUPITER/student/dashboard |
-| HR Dashboard | http://localhost:8080/JUPITER/hr/dashboard |
-| Logout | http://localhost:8080/JUPITER/logout |
-
----
-
-# API Documentation
-
-## Student APIs
-
-Base Path: `/api/students`
-
----
-
-### 1. Ping (Health Check)
-
+### Base URL
 ```
-GET /api/students/ping
+http://localhost:8080/api
 ```
 
-**Response:** `text/plain`
-```
-JUPITER Student API is running! 🚀
-```
-
----
-
-### 2. API Status
-
-```
-GET /api/students/status
-```
-
-**Response:**
+### Response Format
+All responses follow this structure:
 ```json
 {
-  "status": "UP",
-  "service": "JUPITER Student API",
-  "version": "1.0.0",
-  "totalStudents": 10,
-  "timestamp": 1706789012345
+  "success": true | false,
+  "message": "string",
+  "data": {}
 }
 ```
 
----
+### User Roles
+- **ADMIN** - Full access to all resources
+- **HR** - Access to HR-related endpoints
+- **STUDENT** - Limited access to own data
 
-### 3. Create Student
+## API Endpoints
 
-```
-POST /api/students
-Content-Type: application/json
-```
+### Authentication (`/api/auth`)
 
-**Request Body:**
-```json
-{
-  "studentCode": "STU2024001",
-  "firstName": "John",
-  "lastName": "Doe",
-  "email": "john.doe@university.edu",
-  "phone": "+1-555-123-4567",
-  "dateOfBirth": "2000-05-15",
-  "gender": "Male",
-  "department": "Computer Science",
-  "course": "B.Tech",
-  "semester": 6,
-  "cgpa": 8.5,
-  "address": {
-    "street": "123 University Ave",
-    "city": "Boston",
-    "state": "Massachusetts",
-    "zipCode": "02101",
-    "country": "USA"
-  }
-}
-```
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | /register | Register new user | No |
+| POST | /login | Login user | No |
+| POST | /refresh | Refresh access token | No |
+| POST | /logout | Logout user | Yes |
+| POST | /change-password | Change password | Yes |
+| GET | /profile | Get user profile | Yes |
+| PUT | /profile | Update user profile | Yes |
+| GET | /me | Get current user | Yes |
 
-**Response (201 Created):**
-```json
-{
-  "success": true,
-  "message": "Student created successfully",
-  "data": {
-    "id": "65a1b2c3d4e5f6789012345a",
-    "studentCode": "STU2024001",
-    "firstName": "John",
-    "lastName": "Doe",
-    "email": "john.doe@university.edu",
-    "status": "ACTIVE",
-    "createdAt": "2024-01-15T10:30:00"
-  }
-}
-```
+### Students (`/api/students`)
 
----
+| Method | Endpoint | Description | Auth | Role |
+|--------|----------|-------------|------|------|
+| GET | /ping | Health check | No | - |
+| GET | /status | Service status | No | - |
+| POST | / | Create student | Yes | ADMIN, HR |
+| GET | / | Get all students (paginated) | Yes | All |
+| GET | /:id | Get student by ID | Yes | All |
+| GET | /code/:studentCode | Get student by code | Yes | All |
+| GET | /department/:department | Get by department | Yes | All |
+| GET | /status/:status | Get by status | Yes | All |
+| GET | /search?name= | Search students | Yes | All |
+| PUT | /:id | Update student | Yes | ADMIN, HR |
+| PATCH | /:id/status?status= | Update status | Yes | ADMIN, HR |
+| DELETE | /:id | Delete student | Yes | ADMIN, HR |
+| GET | /stats | Get statistics | Yes | ADMIN, HR |
 
-### 4. Get Student by ID
+### HR Module (`/api/hr`)
 
-```
-GET /api/students/{id}
-```
+| Method | Endpoint | Description | Auth | Role |
+|--------|----------|-------------|------|------|
+| GET | /ping | Health check | No | - |
+| GET | /status | Service status | No | - |
+| GET | /dashboard/stats | Dashboard statistics | Yes | ADMIN, HR |
 
-**Example:** `GET /api/students/65a1b2c3d4e5f6789012345a`
+#### Skills (`/api/hr/skill`)
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "65a1b2c3d4e5f6789012345a",
-    "studentCode": "STU2024001",
-    "firstName": "John",
-    "lastName": "Doe",
-    "email": "john.doe@university.edu",
-    "department": "Computer Science",
-    "status": "ACTIVE"
-  }
-}
-```
+| Method | Endpoint | Description | Auth | Role |
+|--------|----------|-------------|------|------|
+| POST | / | Create skill | Yes | ADMIN, HR |
+| GET | /:id | Get skill by ID | Yes | ADMIN, HR |
+| GET | /student/:studentId | Get skills by student | Yes | ADMIN, HR |
+| GET | /unverified | Get unverified skills | Yes | ADMIN, HR |
+| PUT | /:id/verify?hrId= | Verify skill | Yes | ADMIN, HR |
+| PUT | /:id/reject | Reject skill | Yes | ADMIN, HR |
+| DELETE | /:id | Delete skill | Yes | ADMIN, HR |
 
----
+#### Performance (`/api/hr/performance`)
 
-### 5. Get Student by Code
+| Method | Endpoint | Description | Auth | Role |
+|--------|----------|-------------|------|------|
+| POST | / | Create performance | Yes | ADMIN, HR |
+| GET | /:id | Get performance by ID | Yes | ADMIN, HR |
+| GET | /student/:studentId | Get by student | Yes | ADMIN, HR |
+| GET | /pending | Get pending | Yes | ADMIN, HR |
+| PUT | /:id/approve | Approve performance | Yes | ADMIN, HR |
+| PUT | /:id/reject | Reject performance | Yes | ADMIN, HR |
 
-```
-GET /api/students/code/{studentCode}
-```
+#### Documents (`/api/hr/document`)
 
-**Example:** `GET /api/students/code/STU2024001`
+| Method | Endpoint | Description | Auth | Role |
+|--------|----------|-------------|------|------|
+| POST | / | Upload document | Yes | ADMIN, HR |
+| GET | /:id | Get document by ID | Yes | ADMIN, HR |
+| GET | /student/:studentId | Get by student | Yes | ADMIN, HR |
+| GET | /pending | Get pending | Yes | ADMIN, HR |
+| PUT | /:id/verify | Verify document | Yes | ADMIN, HR |
+| PUT | /:id/reject | Reject document | Yes | ADMIN, HR |
+| DELETE | /:id | Delete document | Yes | ADMIN, HR |
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "65a1b2c3d4e5f6789012345a",
-    "studentCode": "STU2024001",
-    "firstName": "John",
-    "lastName": "Doe"
-  }
-}
-```
+## Postman Testing Order
 
----
-
-### 6. Get All Students (Paginated)
+### 1. Setup and Authentication
 
 ```
-GET /api/students?page=0&size=10
+1. POST /api/auth/register
+   Body: {
+     "email": "admin@jupiter.com",
+     "password": "admin123",
+     "firstName": "Admin",
+     "lastName": "User",
+     "role": "ADMIN"
+   }
+
+2. POST /api/auth/login
+   Body: {
+     "email": "admin@jupiter.com",
+     "password": "admin123"
+   }
+   → Save accessToken and refreshToken
+
+3. Set Authorization header for subsequent requests:
+   Authorization: Bearer <accessToken>
 ```
 
-**Query Parameters:**
-| Param | Default | Description |
-|-------|---------|-------------|
-| page | 0 | Page number |
-| size | 20 | Items per page |
+### 2. Test Student Endpoints
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "65a1b2c3d4e5f6789012345a",
-      "studentCode": "STU2024001",
-      "firstName": "John",
-      "lastName": "Doe"
+```
+4. GET /api/students/ping
+5. GET /api/students/status
+
+6. POST /api/students
+   Body: {
+     "firstName": "John",
+     "lastName": "Doe",
+     "email": "john.doe@student.com",
+     "department": "COMPUTER_SCIENCE",
+     "enrollmentYear": 2023,
+     "semester": 3
+   }
+   → Save student ID and studentCode
+
+7. GET /api/students
+8. GET /api/students/:id
+9. GET /api/students/code/:studentCode
+10. GET /api/students/department/COMPUTER_SCIENCE
+11. GET /api/students/status/ACTIVE
+12. GET /api/students/search?name=John
+
+13. PUT /api/students/:id
+    Body: {
+      "phone": "+1234567890",
+      "cgpa": 8.5
     }
-  ],
-  "currentPage": 0,
-  "totalItems": 50,
-  "totalPages": 5
-}
+
+14. PATCH /api/students/:id/status?status=INACTIVE
+15. GET /api/students/stats
 ```
 
----
-
-### 7. Get Students by Department
+### 3. Test Skill Endpoints
 
 ```
-GET /api/students/department/{department}
-```
-
-**Example:** `GET /api/students/department/Computer%20Science`
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": [...],
-  "count": 15
-}
-```
-
----
-
-### 8. Get Students by Status
-
-```
-GET /api/students/status/{status}
-```
-
-**Valid Status Values:** `ACTIVE`, `INACTIVE`, `GRADUATED`, `SUSPENDED`, `ON_LEAVE`
-
-**Example:** `GET /api/students/status/ACTIVE`
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": [...],
-  "count": 25
-}
-```
-
----
-
-### 9. Search Students by Name
-
-```
-GET /api/students/search?name={name}
-```
-
-**Example:** `GET /api/students/search?name=John`
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": [...],
-  "count": 3
-}
-```
-
----
-
-### 10. Update Student
-
-```
-PUT /api/students/{id}
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "studentCode": "STU2024001",
-  "firstName": "John",
-  "lastName": "Doe",
-  "email": "john.updated@university.edu",
-  "semester": 7,
-  "cgpa": 8.8
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Student updated successfully",
-  "data": {...}
-}
-```
-
----
-
-### 11. Update Student Status
-
-```
-PATCH /api/students/{id}/status?status={status}
-```
-
-**Example:** `PATCH /api/students/65a1b2c3d4e5f6789012345a/status?status=GRADUATED`
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Student status updated successfully"
-}
-```
-
----
-
-### 12. Delete Student
-
-```
-DELETE /api/students/{id}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Student deleted successfully"
-}
-```
-
----
-
-### 13. Get Student Statistics
-
-```
-GET /api/students/stats
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "totalStudents": 150,
-    "activeStudents": 120,
-    "graduatedStudents": 25,
-    "inactiveStudents": 5
-  }
-}
-```
-
----
-
-## HR APIs
-
-Base Path: `/api/hr`
-
----
-
-### 1. Ping (Health Check)
-
-```
-GET /api/hr/ping
-```
-
-**Response:** `text/plain`
-```
-JUPITER HR API is running! 🚀
-```
-
----
-
-### 2. API Status
-
-```
-GET /api/hr/status
-```
-
-**Response:**
-```json
-{
-  "status": "UP",
-  "service": "JUPITER HR API",
-  "version": "1.0.0",
-  "timestamp": 1706789012345
-}
-```
-
----
-
-## Skill APIs
-
----
-
-### 3. Add Skill
-
-```
-POST /api/hr/skill
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "studentId": "65a1b2c3d4e5f6789012345a",
-  "skillName": "Java Programming",
-  "category": "PROGRAMMING",
-  "proficiencyLevel": "ADVANCED",
-  "yearsOfExperience": 3.5,
-  "certified": true,
-  "certificationName": "Oracle Certified Professional",
-  "description": "Strong experience in Java SE and Java EE"
-}
-```
-
-**Category Values:** `TECHNICAL`, `PROGRAMMING`, `DATABASE`, `FRAMEWORK`, `SOFT_SKILL`, `LANGUAGE`, `MANAGEMENT`, `DESIGN`, `OTHER`
-
-**Proficiency Values:** `BEGINNER`, `INTERMEDIATE`, `ADVANCED`, `EXPERT`
-
-**Response (201 Created):**
-```json
-{
-  "success": true,
-  "message": "Skill added successfully",
-  "data": {
-    "id": "65b1c2d3e4f5678901234567",
-    "studentId": "65a1b2c3d4e5f6789012345a",
-    "skillName": "Java Programming",
-    "category": "PROGRAMMING",
-    "proficiencyLevel": "ADVANCED",
-    "verifiedByHr": false,
-    "createdAt": "2024-01-15T11:00:00"
-  }
-}
-```
-
----
-
-### 4. Get Skill by ID
-
-```
-GET /api/hr/skill/{id}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "65b1c2d3e4f5678901234567",
-    "studentId": "65a1b2c3d4e5f6789012345a",
-    "skillName": "Java Programming",
-    "verifiedByHr": false
-  }
-}
-```
-
----
-
-### 5. Get Skills by Student
-
-```
-GET /api/hr/skill/student/{studentId}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": [...],
-  "count": 5
-}
-```
-
----
-
-### 6. Get Unverified Skills
-
-```
-GET /api/hr/skill/unverified
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": [...],
-  "count": 10
-}
-```
-
----
-
-### 7. Verify Skill
-
-```
-PUT /api/hr/skill/{id}/verify?hrId={hrId}
-```
-
-**Example:** `PUT /api/hr/skill/65b1c2d3e4f5678901234567/verify?hrId=hr123`
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Skill verified successfully"
-}
-```
-
----
-
-### 8. Delete Skill
-
-```
-DELETE /api/hr/skill/{id}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Skill deleted successfully"
-}
-```
-
----
-
-## Performance APIs
-
----
-
-### 9. Create Performance Evaluation
-
-```
-POST /api/hr/performance
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "studentId": "65a1b2c3d4e5f6789012345a",
-  "evaluatorId": "hr123",
-  "evaluatorName": "HR Manager",
-  "evaluationType": "QUARTERLY",
-  "evaluationPeriod": "Q1 2024",
-  "overallScore": 85.5,
-  "grade": "A",
-  "metrics": [
-    {
-      "metricName": "Technical Skills",
-      "score": 90,
-      "maxScore": 100,
-      "weightage": 0.4,
-      "comments": "Excellent coding skills"
-    },
-    {
-      "metricName": "Communication",
-      "score": 80,
-      "maxScore": 100,
-      "weightage": 0.3
+16. POST /api/hr/skill
+    Body: {
+      "studentId": "<student_id>",
+      "name": "JavaScript",
+      "category": "Programming",
+      "level": "INTERMEDIATE",
+      "yearsOfExperience": 2
     }
-  ],
-  "strengths": ["Problem-solving", "Quick learner"],
-  "areasForImprovement": ["Time management"],
-  "comments": "Great performance this quarter",
-  "goals": ["Complete AWS certification"]
-}
+    → Save skill ID
+
+17. GET /api/hr/skill/:id
+18. GET /api/hr/skill/student/:studentId
+19. GET /api/hr/skill/unverified
+20. PUT /api/hr/skill/:id/verify?hrId=<user_id>
 ```
 
-**Evaluation Types:** `ACADEMIC`, `INTERNSHIP`, `PROJECT`, `QUARTERLY`, `ANNUAL`, `PROBATION`, `SKILL_ASSESSMENT`
-
-**Response (201 Created):**
-```json
-{
-  "success": true,
-  "message": "Performance evaluation created successfully",
-  "data": {
-    "id": "65d1e2f3a4b5678901234567",
-    "studentId": "65a1b2c3d4e5f6789012345a",
-    "evaluationType": "QUARTERLY",
-    "overallScore": 85.5,
-    "grade": "A",
-    "status": "DRAFT"
-  }
-}
-```
-
----
-
-### 10. Get Performance by ID
+### 4. Test Performance Endpoints
 
 ```
-GET /api/hr/performance/{id}
+21. POST /api/hr/performance
+    Body: {
+      "studentId": "<student_id>",
+      "type": "ACADEMIC",
+      "title": "Semester 3 Results",
+      "description": "Achieved excellent grades",
+      "semester": 3,
+      "academicYear": "2023-2024",
+      "score": 85,
+      "grade": "A"
+    }
+    → Save performance ID
+
+22. GET /api/hr/performance/:id
+23. GET /api/hr/performance/student/:studentId
+24. GET /api/hr/performance/pending
+25. PUT /api/hr/performance/:id/approve
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {...}
-}
-```
-
----
-
-### 11. Get Performances by Student
+### 5. Test Document Endpoints
 
 ```
-GET /api/hr/performance/student/{studentId}
+26. POST /api/hr/document (multipart/form-data)
+    - file: <upload file>
+    - studentId: <student_id>
+    - type: RESUME
+    - title: John's Resume
+    → Save document ID
+
+27. GET /api/hr/document/:id
+28. GET /api/hr/document/student/:studentId
+29. GET /api/hr/document/pending
+30. PUT /api/hr/document/:id/verify
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": [...],
-  "count": 4
-}
-```
-
----
-
-### 12. Get Pending Reviews
+### 6. Test Dashboard
 
 ```
-GET /api/hr/performance/pending
+31. GET /api/hr/ping
+32. GET /api/hr/status
+33. GET /api/hr/dashboard/stats
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": [...],
-  "count": 5
-}
-```
-
----
-
-### 13. Approve Performance
+### 7. Cleanup (Optional)
 
 ```
-PUT /api/hr/performance/{id}/approve
+34. DELETE /api/hr/document/:id
+35. DELETE /api/hr/skill/:id
+36. DELETE /api/students/:id
+37. POST /api/auth/logout
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Performance evaluation approved successfully"
-}
-```
+## Environment Variables
 
----
+| Variable | Description | Default |
+|----------|-------------|---------|
+| PORT | Server port | 8080 |
+| NODE_ENV | Environment | development |
+| MONGO_URI | MongoDB connection string | - |
+| JWT_SECRET | JWT signing secret | - |
+| JWT_REFRESH_SECRET | Refresh token secret | - |
+| TOKEN_EXPIRES_IN | Access token expiry | 15m |
+| REFRESH_EXPIRES_IN | Refresh token expiry | 7d |
+| UPLOAD_DIR | Upload directory | uploads |
+| MAX_FILE_SIZE | Max upload size (bytes) | 5242880 |
+| LOG_LEVEL | Winston log level | info |
 
-### 14. Reject Performance
+## Error Handling
 
-```
-PUT /api/hr/performance/{id}/reject
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Performance evaluation rejected"
-}
-```
-
----
-
-## Document APIs
-
----
-
-### 15. Create Document
-
-```
-POST /api/hr/document
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "studentId": "65a1b2c3d4e5f6789012345a",
-  "documentName": "Academic Transcript",
-  "documentType": "TRANSCRIPT",
-  "fileName": "transcript_2024.pdf",
-  "filePath": "/uploads/transcripts/transcript_2024.pdf",
-  "fileSize": 524288,
-  "mimeType": "application/pdf",
-  "description": "Official transcript for 2023-2024",
-  "confidential": false
-}
-```
-
-**Document Types:** `ID_PROOF`, `ADDRESS_PROOF`, `ACADEMIC_CERTIFICATE`, `PROFESSIONAL_CERTIFICATE`, `TRANSCRIPT`, `RESUME`, `COVER_LETTER`, `OFFER_LETTER`, `EXPERIENCE_LETTER`, `RECOMMENDATION_LETTER`, `PASSPORT`, `VISA`, `MEDICAL_RECORD`, `OTHER`
-
-**Response (201 Created):**
-```json
-{
-  "success": true,
-  "message": "Document created successfully",
-  "data": {
-    "id": "65e1f2a3b4c5678901234567",
-    "documentName": "Academic Transcript",
-    "documentType": "TRANSCRIPT",
-    "status": "PENDING",
-    "verified": false
-  }
-}
-```
-
----
-
-### 16. Get Document by ID
-
-```
-GET /api/hr/document/{id}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {...}
-}
-```
-
----
-
-### 17. Get Documents by Student
-
-```
-GET /api/hr/document/student/{studentId}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": [...],
-  "count": 3
-}
-```
-
----
-
-### 18. Get Pending Documents
-
-```
-GET /api/hr/document/pending
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": [...],
-  "count": 8
-}
-```
-
----
-
-### 19. Verify Document
-
-```
-PUT /api/hr/document/{id}/verify?hrId={hrId}&hrName={hrName}&remarks={remarks}
-```
-
-**Query Parameters:**
-| Param | Required | Description |
-|-------|----------|-------------|
-| hrId | Yes | HR user ID |
-| hrName | Yes | HR user name |
-| remarks | No | Verification notes |
-
-**Example:** `PUT /api/hr/document/65e1f2a3b4c5678901234567/verify?hrId=hr123&hrName=John%20HR&remarks=Verified`
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Document verified successfully"
-}
-```
-
----
-
-### 20. Reject Document
-
-```
-PUT /api/hr/document/{id}/reject?hrId={hrId}&hrName={hrName}&remarks={remarks}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Document rejected"
-}
-```
-
----
-
-### 21. Delete Document
-
-```
-DELETE /api/hr/document/{id}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Document deleted successfully"
-}
-```
-
----
-
-### 22. Get Dashboard Statistics
-
-```
-GET /api/hr/dashboard/stats
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "pendingSkillVerifications": 15,
-    "pendingDocuments": 8,
-    "expiringDocuments": 3,
-    "pendingPerformanceReviews": 5
-  }
-}
-```
-
----
-
-## API Summary Table
-
-### Student APIs (13 endpoints)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/students/ping` | Health check |
-| GET | `/api/students/status` | API status |
-| POST | `/api/students` | Create student |
-| GET | `/api/students/{id}` | Get by ID |
-| GET | `/api/students/code/{code}` | Get by code |
-| GET | `/api/students` | List all (paginated) |
-| GET | `/api/students/department/{dept}` | Filter by department |
-| GET | `/api/students/status/{status}` | Filter by status |
-| GET | `/api/students/search?name=` | Search by name |
-| PUT | `/api/students/{id}` | Update student |
-| PATCH | `/api/students/{id}/status?status=` | Update status |
-| DELETE | `/api/students/{id}` | Delete student |
-| GET | `/api/students/stats` | Statistics |
-
-### HR APIs (22 endpoints)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/hr/ping` | Health check |
-| GET | `/api/hr/status` | API status |
-| POST | `/api/hr/skill` | Add skill |
-| GET | `/api/hr/skill/{id}` | Get skill |
-| GET | `/api/hr/skill/student/{studentId}` | Skills by student |
-| GET | `/api/hr/skill/unverified` | Unverified skills |
-| PUT | `/api/hr/skill/{id}/verify?hrId=` | Verify skill |
-| DELETE | `/api/hr/skill/{id}` | Delete skill |
-| POST | `/api/hr/performance` | Create evaluation |
-| GET | `/api/hr/performance/{id}` | Get evaluation |
-| GET | `/api/hr/performance/student/{studentId}` | By student |
-| GET | `/api/hr/performance/pending` | Pending reviews |
-| PUT | `/api/hr/performance/{id}/approve` | Approve |
-| PUT | `/api/hr/performance/{id}/reject` | Reject |
-| POST | `/api/hr/document` | Create document |
-| GET | `/api/hr/document/{id}` | Get document |
-| GET | `/api/hr/document/student/{studentId}` | By student |
-| GET | `/api/hr/document/pending` | Pending documents |
-| PUT | `/api/hr/document/{id}/verify?hrId=&hrName=` | Verify |
-| PUT | `/api/hr/document/{id}/reject?hrId=&hrName=` | Reject |
-| DELETE | `/api/hr/document/{id}` | Delete document |
-| GET | `/api/hr/dashboard/stats` | Dashboard stats |
-
----
-
-## Postman Collection
-
-### Test Sequence
-
-1. **Health Check**
-   ```
-   GET http://localhost:8080/JUPITER/api/students/ping
-   ```
-
-2. **Create Student**
-   ```
-   POST http://localhost:8080/JUPITER/api/students
-   Body: { "studentCode": "STU001", "firstName": "Test", "lastName": "User", "email": "test@test.com" }
-   ```
-
-3. **Add Skill**
-   ```
-   POST http://localhost:8080/JUPITER/api/hr/skill
-   Body: { "studentId": "<student_id>", "skillName": "Java", "category": "PROGRAMMING", "proficiencyLevel": "ADVANCED" }
-   ```
-
-4. **Create Performance**
-   ```
-   POST http://localhost:8080/JUPITER/api/hr/performance
-   Body: { "studentId": "<student_id>", "evaluatorId": "hr1", "evaluatorName": "HR", "evaluationType": "QUARTERLY", "overallScore": 85 }
-   ```
-
-5. **Create Document**
-   ```
-   POST http://localhost:8080/JUPITER/api/hr/document
-   Body: { "studentId": "<student_id>", "documentName": "Resume", "documentType": "RESUME", "fileName": "resume.pdf" }
-   ```
-
----
-
-## Error Responses
-
-All error responses follow this format:
+The API uses consistent error responses:
 
 ```json
 {
   "success": false,
-  "message": "Error description"
+  "message": "Error description",
+  "data": [
+    {
+      "field": "email",
+      "message": "Invalid email format"
+    }
+  ]
 }
 ```
 
-**Common HTTP Status Codes:**
+### HTTP Status Codes
+
 - `200` - Success
 - `201` - Created
-- `400` - Bad Request (validation error)
+- `400` - Bad Request
+- `401` - Unauthorized
+- `403` - Forbidden
 - `404` - Not Found
+- `409` - Conflict
+- `422` - Validation Error
 - `500` - Internal Server Error
 
----
+## Security Features
 
-## Technology Stack
+- JWT-based authentication with refresh tokens
+- Password hashing with bcrypt (12 rounds)
+- Helmet.js security headers
+- CORS configuration
+- Request validation with Zod
+- Role-based access control
+- Rate limiting ready (can be added)
 
-| Component | Technology |
-|-----------|------------|
-| Language | Java 17 |
-| Framework | Spring MVC 6.1.4 |
-| Database | MongoDB |
-| Server | Apache Tomcat 10+ |
-| Build | Maven |
+## Logging
 
----
+Winston logger with:
+- Console output (development)
+- File output (production): `logs/error.log`, `logs/combined.log`
+- Request/response logging
+- Error stack traces
 
 ## License
 
-This project is developed for educational purposes.
-
----
-
-**JUPITER Development Team** | Version 1.0.0
+ISC
