@@ -30,11 +30,12 @@ const authenticate = asyncHandler(async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, env.JWT_SECRET);
 
-    // Attach user info to request
+    // Attach user info to request (include studentId for STUDENT users)
     req.user = {
       id: decoded.id,
       email: decoded.email,
       role: decoded.role,
+      ...(decoded.studentId && { studentId: decoded.studentId }),
     };
 
     next();
@@ -69,6 +70,7 @@ const optionalAuth = asyncHandler(async (req, res, next) => {
         id: decoded.id,
         email: decoded.email,
         role: decoded.role,
+        ...(decoded.studentId && { studentId: decoded.studentId }),
       };
     } catch (error) {
       // Token invalid or expired, continue without user
@@ -96,6 +98,7 @@ const verifyRefreshToken = asyncHandler(async (req, res, next) => {
       id: decoded.id,
       email: decoded.email,
       role: decoded.role,
+      ...(decoded.studentId && { studentId: decoded.studentId }),
     };
 
     next();

@@ -7,9 +7,12 @@ class AuthController {
   /**
    * POST /api/auth/register
    * Register a new user
+   * - ADMIN users can be created without authentication (first-time setup)
+   * - HR and STUDENT users require ADMIN authentication
    */
   register = asyncHandler(async (req, res) => {
-    const result = await authService.register(req.body);
+    // req.user will be populated if authenticated (via optionalAuth middleware)
+    const result = await authService.register(req.body, req.user || null);
     return ApiResponse.created(res, 'User registered successfully', result);
   });
 

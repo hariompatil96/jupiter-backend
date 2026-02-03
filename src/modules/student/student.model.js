@@ -119,8 +119,7 @@ const studentSchema = new mongoose.Schema(
 );
 
 // Indexes
-studentSchema.index({ studentCode: 1 });
-studentSchema.index({ email: 1 });
+// Note: studentCode and email indexes are automatically created by unique: true
 studentSchema.index({ department: 1 });
 studentSchema.index({ status: 1 });
 studentSchema.index({ firstName: 'text', lastName: 'text', email: 'text' });

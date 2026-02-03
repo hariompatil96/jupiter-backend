@@ -173,23 +173,76 @@ All responses follow this structure:
 
 ### User Roles
 - **ADMIN** - Full access to all resources
-- **HR** - Access to HR-related endpoints
-- **STUDENT** - Limited access to own data
+- **HR** - Access to HR-related endpoints, read-only access to student profiles
+- **STUDENT** - Limited access to own profile only (cannot access student list, stats, or HR APIs)
+
+## Authentication & User Creation Flow
+
+### Core Principles
+
+1. **Authentication is handled ONLY by the User collection** - Student and HR domain models NEVER store passwords
+2. **Password is REQUIRED at user creation time** - There is NO concept of password auto-generation
+3. **Every user (ADMIN, HR, STUDENT) must have:** email, password, role
+
+### User Creation Rules
+
+#### ADMIN User Creation
+- Can be created without authentication (first-time setup)
+- Required fields: `email`, `password`, `firstName`, `lastName`, `role: "ADMIN"`
+
+#### HR User Creation
+- **Only ADMIN can create HR users**
+- Required fields: `email`, `password`, `firstName`, `lastName`, `role: "HR"`
+- Password is set explicitly at creation time
+- HR model does NOT store password (User collection stores hashed password)
+
+#### STUDENT User Creation
+- **Only ADMIN can create STUDENT users**
+- Required fields: `email`, `password`, `firstName`, `lastName`, `role: "STUDENT"`, `studentId`
+- `studentId` must reference an existing student in the Student collection
+- User.studentId links authentication to student profile
+- Student model NEVER contains password
+
+### Test Credentials
+
+```
+ADMIN:
+  email: admin@jupiter.com
+  password: Admin@123
+
+HR:
+  email: hr1@jupiter.com
+  password: Hr@123
+
+STUDENT:
+  email: john.doe@student.com
+  password: Student@123
+```
+
+### JWT Payload
+
+For all users:
+- `id` - User ID
+- `email` - User email
+- `role` - User role (ADMIN, HR, STUDENT)
+
+For STUDENT users only:
+- `studentId` - Linked student profile ID
 
 ## API Endpoints
 
 ### Authentication (`/api/auth`)
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | /register | Register new user | No |
-| POST | /login | Login user | No |
-| POST | /refresh | Refresh access token | No |
-| POST | /logout | Logout user | Yes |
-| POST | /change-password | Change password | Yes |
-| GET | /profile | Get user profile | Yes |
-| PUT | /profile | Update user profile | Yes |
-| GET | /me | Get current user | Yes |
+| Method | Endpoint | Description | Auth | Notes |
+|--------|----------|-------------|------|-------|
+| POST | /register | Register new user | Optional | ADMIN: No auth. HR/STUDENT: ADMIN token required |
+| POST | /login | Login user | No | Returns JWT tokens |
+| POST | /refresh | Refresh access token | No | |
+| POST | /logout | Logout user | Yes | |
+| POST | /change-password | Change password | Yes | |
+| GET | /profile | Get user profile | Yes | |
+| PUT | /profile | Update user profile | Yes | |
+| GET | /me | Get current user | Yes | |
 
 ### Students (`/api/students`)
 
@@ -197,17 +250,17 @@ All responses follow this structure:
 |--------|----------|-------------|------|------|
 | GET | /ping | Health check | No | - |
 | GET | /status | Service status | No | - |
-| POST | / | Create student | Yes | ADMIN, HR |
-| GET | / | Get all students (paginated) | Yes | All |
-| GET | /:id | Get student by ID | Yes | All |
-| GET | /code/:studentCode | Get student by code | Yes | All |
-| GET | /department/:department | Get by department | Yes | All |
-| GET | /status/:status | Get by status | Yes | All |
-| GET | /search?name= | Search students | Yes | All |
+| POST | / | Create student profile | Yes | ADMIN, HR |
+| GET | / | Get all students (paginated) | Yes | ADMIN, HR only |
+| GET | /:id | Get student by ID | Yes | ADMIN, HR, or own profile (STUDENT) |
+| GET | /code/:studentCode | Get student by code | Yes | ADMIN, HR only |
+| GET | /department/:department | Get by department | Yes | ADMIN, HR only |
+| GET | /status/:status | Get by status | Yes | ADMIN, HR only |
+| GET | /search?name= | Search students | Yes | ADMIN, HR only |
 | PUT | /:id | Update student | Yes | ADMIN, HR |
 | PATCH | /:id/status?status= | Update status | Yes | ADMIN, HR |
 | DELETE | /:id | Delete student | Yes | ADMIN, HR |
-| GET | /stats | Get statistics | Yes | ADMIN, HR |
+| GET | /stats | Get statistics | Yes | ADMIN, HR only |
 
 ### HR Module (`/api/hr`)
 
@@ -254,13 +307,13 @@ All responses follow this structure:
 
 ## Postman Testing Order
 
-### 1. Setup and Authentication
+### 1. Setup ADMIN and Authentication
 
 ```
-1. POST /api/auth/register
+1. POST /api/auth/register (No Auth required for ADMIN)
    Body: {
      "email": "admin@jupiter.com",
-     "password": "admin123",
+     "password": "Admin@123",
      "firstName": "Admin",
      "lastName": "User",
      "role": "ADMIN"
@@ -269,7 +322,7 @@ All responses follow this structure:
 2. POST /api/auth/login
    Body: {
      "email": "admin@jupiter.com",
-     "password": "admin123"
+     "password": "Admin@123"
    }
    → Save accessToken and refreshToken
 
@@ -277,38 +330,71 @@ All responses follow this structure:
    Authorization: Bearer <accessToken>
 ```
 
-### 2. Test Student Endpoints
+### 2. Create HR User (ADMIN only)
 
 ```
-4. GET /api/students/ping
-5. GET /api/students/status
+4. POST /api/auth/register (Requires ADMIN token)
+   Authorization: Bearer <ADMIN_TOKEN>
+   Body: {
+     "email": "hr1@jupiter.com",
+     "password": "Hr@123",
+     "firstName": "HR",
+     "lastName": "Manager",
+     "role": "HR"
+   }
+```
 
-6. POST /api/students
+### 3. Create Student Profile (ADMIN/HR)
+
+```
+5. GET /api/students/ping
+6. GET /api/students/status
+
+7. POST /api/students (Creates student profile - no password here)
    Body: {
      "firstName": "John",
      "lastName": "Doe",
      "email": "john.doe@student.com",
      "department": "COMPUTER_SCIENCE",
-     "enrollmentYear": 2023,
      "semester": 3
    }
-   → Save student ID and studentCode
+   → Save student ID (e.g., "507f1f77bcf86cd799439011")
+```
 
-7. GET /api/students
-8. GET /api/students/:id
-9. GET /api/students/code/:studentCode
-10. GET /api/students/department/COMPUTER_SCIENCE
-11. GET /api/students/status/ACTIVE
-12. GET /api/students/search?name=John
+### 4. Create STUDENT User Account (ADMIN only)
 
-13. PUT /api/students/:id
+```
+8. POST /api/auth/register (Requires ADMIN token)
+   Authorization: Bearer <ADMIN_TOKEN>
+   Body: {
+     "email": "john.doe@student.com",
+     "password": "Student@123",
+     "firstName": "John",
+     "lastName": "Doe",
+     "role": "STUDENT",
+     "studentId": "<student_id_from_step_7>"
+   }
+   → Student can now login with these credentials
+```
+
+### 5. Test Student Endpoints
+
+```
+9. GET /api/students
+10. GET /api/students/:id
+11. GET /api/students/code/:studentCode
+12. GET /api/students/department/COMPUTER_SCIENCE
+13. GET /api/students/status/ACTIVE
+14. GET /api/students/search?name=John
+
+15. PUT /api/students/:id
     Body: {
       "phone": "+1234567890",
       "cgpa": 8.5
     }
 
-14. PATCH /api/students/:id/status?status=INACTIVE
-15. GET /api/students/stats
+16. PATCH /api/students/:id/status?status=INACTIVE
+17. GET /api/students/stats
 ```
 
 ### 3. Test Skill Endpoints

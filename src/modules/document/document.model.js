@@ -98,10 +98,10 @@ const documentSchema = new mongoose.Schema(
 );
 
 // Indexes
-documentSchema.index({ studentId: 1, documentType: 1 });
+// Note: studentId and expiryDate single-field indexes are created by index: true in schema
+documentSchema.index({ studentId: 1, documentType: 1 }); // Compound index for efficient queries
 documentSchema.index({ status: 1 });
 documentSchema.index({ documentType: 1 });
-documentSchema.index({ expiryDate: 1 });
 
 // Virtual for checking if document is expired
 documentSchema.virtual('isExpired').get(function () {

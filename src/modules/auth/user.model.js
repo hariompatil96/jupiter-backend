@@ -33,7 +33,12 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: Object.values(ROLES),
-      default: ROLES.STUDENT,
+      required: [true, 'Role is required'],
+    },
+    studentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Student',
+      default: null,
     },
     isActive: {
       type: Boolean,
@@ -70,8 +75,7 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Index for email lookups
-userSchema.index({ email: 1 });
+// Note: email index is automatically created by unique: true
 
 // Pre-save middleware to hash password
 userSchema.pre('save', async function (next) {

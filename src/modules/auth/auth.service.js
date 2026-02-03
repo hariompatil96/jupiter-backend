@@ -1,8 +1,9 @@
 const jwt = require('jsonwebtoken');
 const User = require('./user.model');
+const Student = require('../student/student.model');
 const env = require('../../config/env');
 const { AppError } = require('../../middlewares/error.middleware');
-const { MESSAGES } = require('../../utils/constants');
+const { MESSAGES, ROLES } = require('../../utils/constants');
 
 class AuthService {
   /**
@@ -11,15 +12,18 @@ class AuthService {
    * @returns {string} Access token
    */
   generateAccessToken(user) {
-    return jwt.sign(
-      {
-        id: user._id,
-        email: user.email,
-        role: user.role,
-      },
-      env.JWT_SECRET,
-      { expiresIn: env.TOKEN_EXPIRES_IN }
-    );
+    const payload = {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+    };
+
+    // Include studentId in JWT payload for STUDENT users
+    if (user.role === ROLES.STUDENT && user.studentId) {
+      payload.studentId = user.studentId;
+    }
+
+    return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.TOKEN_EXPIRES_IN });
   }
 
   /**
@@ -28,15 +32,18 @@ class AuthService {
    * @returns {string} Refresh token
    */
   generateRefreshToken(user) {
-    return jwt.sign(
-      {
-        id: user._id,
-        email: user.email,
-        role: user.role,
-      },
-      env.JWT_REFRESH_SECRET,
-      { expiresIn: env.REFRESH_EXPIRES_IN }
-    );
+    const payload = {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+    };
+
+    // Include studentId in JWT payload for STUDENT users
+    if (user.role === ROLES.STUDENT && user.studentId) {
+      payload.studentId = user.studentId;
+    }
+
+    return jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: env.REFRESH_EXPIRES_IN });
   }
 
   /**
@@ -53,15 +60,45 @@ class AuthService {
   /**
    * Register a new user
    * @param {Object} userData - User registration data
+   * @param {Object} requestingUser - The user making the request (null for public registration)
    * @returns {Object} User and tokens
    */
-  async register(userData) {
-    const { email, password, firstName, lastName, role } = userData;
+  async register(userData, requestingUser = null) {
+    const { email, password, firstName, lastName, role, studentId } = userData;
+
+    // AUTHORIZATION: Only ADMIN can create HR or STUDENT users
+    if (role === ROLES.HR || role === ROLES.STUDENT) {
+      if (!requestingUser) {
+        throw new AppError('Authentication required to create HR or STUDENT users', 401);
+      }
+      if (requestingUser.role !== ROLES.ADMIN) {
+        throw new AppError('Only ADMIN can create HR or STUDENT users', 403);
+      }
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       throw new AppError('Email already registered', 409);
+    }
+
+    // STUDENT-specific validation: Verify studentId exists in Student collection
+    let linkedStudent = null;
+    if (role === ROLES.STUDENT) {
+      if (!studentId) {
+        throw new AppError('studentId is required for STUDENT role', 400);
+      }
+
+      linkedStudent = await Student.findById(studentId);
+      if (!linkedStudent) {
+        throw new AppError('Student not found. studentId must reference an existing student.', 404);
+      }
+
+      // Check if this student is already linked to another user
+      const existingStudentUser = await User.findOne({ studentId });
+      if (existingStudentUser) {
+        throw new AppError('This student is already linked to another user account', 409);
+      }
     }
 
     // Create new user
@@ -71,7 +108,14 @@ class AuthService {
       firstName,
       lastName,
       role,
+      studentId: role === ROLES.STUDENT ? studentId : null,
     });
+
+    // Link the User back to the Student record
+    if (linkedStudent) {
+      linkedStudent.userId = user._id;
+      await linkedStudent.save();
+    }
 
     // Generate tokens
     const tokens = this.generateTokens(user);
@@ -80,14 +124,21 @@ class AuthService {
     user.refreshToken = tokens.refreshToken;
     await user.save();
 
+    const responseUser = {
+      id: user._id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+    };
+
+    // Include studentId in response for STUDENT users
+    if (user.role === ROLES.STUDENT && user.studentId) {
+      responseUser.studentId = user.studentId;
+    }
+
     return {
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-      },
+      user: responseUser,
       ...tokens,
     };
   }
@@ -124,14 +175,21 @@ class AuthService {
     user.refreshToken = tokens.refreshToken;
     await user.save();
 
+    const responseUser = {
+      id: user._id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+    };
+
+    // Include studentId in response for STUDENT users
+    if (user.role === ROLES.STUDENT && user.studentId) {
+      responseUser.studentId = user.studentId;
+    }
+
     return {
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-      },
+      user: responseUser,
       ...tokens,
     };
   }

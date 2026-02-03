@@ -21,43 +21,78 @@ const loginSchema = z.object({
 
 // Register validation schema
 const registerSchema = z.object({
-  body: z.object({
-    email: z
-      .string({
-        required_error: 'Email is required',
-      })
-      .email('Invalid email format')
-      .toLowerCase()
-      .trim(),
-    password: z
-      .string({
-        required_error: 'Password is required',
-      })
-      .min(6, 'Password must be at least 6 characters')
-      .max(128, 'Password cannot exceed 128 characters'),
-    firstName: z
-      .string({
-        required_error: 'First name is required',
-      })
-      .min(1, 'First name is required')
-      .max(50, 'First name cannot exceed 50 characters')
-      .trim(),
-    lastName: z
-      .string({
-        required_error: 'Last name is required',
-      })
-      .min(1, 'Last name is required')
-      .max(50, 'Last name cannot exceed 50 characters')
-      .trim(),
-    role: z
-      .enum(Object.values(ROLES), {
-        errorMap: () => ({
-          message: `Role must be one of: ${Object.values(ROLES).join(', ')}`,
-        }),
-      })
-      .optional()
-      .default(ROLES.STUDENT),
-  }),
+  body: z
+    .object({
+      email: z
+        .string({
+          required_error: 'Email is required',
+        })
+        .email('Invalid email format')
+        .toLowerCase()
+        .trim(),
+      password: z
+        .string({
+          required_error: 'Password is required',
+        })
+        .min(6, 'Password must be at least 6 characters')
+        .max(128, 'Password cannot exceed 128 characters'),
+      firstName: z
+        .string({
+          required_error: 'First name is required',
+        })
+        .min(1, 'First name is required')
+        .max(50, 'First name cannot exceed 50 characters')
+        .trim(),
+      lastName: z
+        .string({
+          required_error: 'Last name is required',
+        })
+        .min(1, 'Last name is required')
+        .max(50, 'Last name cannot exceed 50 characters')
+        .trim(),
+      role: z.enum(Object.values(ROLES), {
+        errorMap: (issue, ctx) => {
+          if (issue.code === 'invalid_type') {
+            return { message: 'Role is required' };
+          }
+          if (issue.code === 'invalid_enum_value') {
+            return { message: `Role must be one of: ${Object.values(ROLES).join(', ')}` };
+          }
+          return { message: ctx.defaultError };
+        },
+      }),
+      studentId: z
+        .string({
+          required_error: 'Student ID is required for STUDENT role',
+        })
+        .optional(),
+    })
+    .refine(
+      (data) => {
+        // If role is STUDENT, studentId is required
+        if (data.role === ROLES.STUDENT) {
+          return !!data.studentId;
+        }
+        return true;
+      },
+      {
+        message: 'studentId is required when role is STUDENT',
+        path: ['studentId'],
+      }
+    )
+    .refine(
+      (data) => {
+        // If role is NOT STUDENT, studentId must NOT be present
+        if (data.role !== ROLES.STUDENT) {
+          return !data.studentId;
+        }
+        return true;
+      },
+      {
+        message: 'studentId must not be provided for non-STUDENT roles',
+        path: ['studentId'],
+      }
+    ),
 });
 
 // Refresh token validation schema
